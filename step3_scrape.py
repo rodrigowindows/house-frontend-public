@@ -199,17 +199,20 @@ def scraping_options():
                 temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.csv')
                 
                 # Get the custom column order or use default
+                current_columns = [col for col in data_for_scraping.columns if col != '_select']
                 column_order = st.session_state.get('custom_column_order', current_columns)
                 
                 # Remove the selection column and get only selected rows
                 scrape_df = selected_rows.copy()
                 scrape_df = scrape_df.drop(columns=['_select'])
                 
-                # Validate and enforce column order
+                # Validate and enforce column order - FIX HERE
+                # Check if column_order is None or empty before iterating
                 final_columns = []
-                for col in column_order:
-                    if col in scrape_df.columns:
-                        final_columns.append(col)
+                if column_order:  # Check if column_order exists and is not empty
+                    for col in column_order:
+                        if col in scrape_df.columns:
+                            final_columns.append(col)
                 
                 # If no custom order is found, use original columns
                 if not final_columns:
