@@ -184,17 +184,25 @@ def show():
     unique_owners = contact_data[["id", "name", "address"]].drop_duplicates()
     owners_data = {}
     
+    # Counter for unique widget keys
+    widget_counter = 0
+    
     for _, owner in unique_owners.iterrows():
+        widget_counter += 1
         owner_id = owner["id"]
         owner_name = owner["name"]
         owner_address = owner["address"]
         
+        # Using a unique expander key for each owner
         with st.expander(f"{owner_name} - {owner_address} (ID: {owner_id})", expanded=True):
             # Filter contacts for this owner
             owner_contacts = contact_data[(contact_data["id"] == owner_id) & 
                                         (contact_data["name"] == owner_name)]
             
-            # Create a dataframe editor for this owner's contacts
+            # Create a dataframe editor for this owner's contacts with a UNIQUE key
+            # The key issue is here - we need to ensure each data_editor has a unique key
+            unique_editor_key = f"editor_{owner_id}_{widget_counter}"
+            
             edited_contacts = st.data_editor(
                 owner_contacts,
                 column_config={
@@ -211,7 +219,7 @@ def show():
                 hide_index=True,
                 use_container_width=True,
                 disabled=["id", "address", "name", "type"],
-                key=f"editor_{owner_id}"
+                key=unique_editor_key  # Using the unique key here
             )
             
             # Store the edited data for this owner
