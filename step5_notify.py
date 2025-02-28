@@ -58,47 +58,42 @@ def select_first_contacts():
         st.error("No data found in session state")
         return None
         
-    try:
-        # Get the data
-        contact_data = st.session_state.final_data.copy()
+    # Get the data
+    contact_data = st.session_state.final_data.copy()
+    
+    # Create a brand new empty DataFrame to store the results
+    result_rows = []
+    
+    # Process each unique name
+    unique_names = contact_data['name'].unique()
+    st.write(f"Found {len(unique_names)} unique names: {list(unique_names)}")
+    
+    for name in unique_names:
+        # Get all contacts for this name
+        name_contacts = contact_data[contact_data['name'] == name]
         
-        # Let's print the data shape to debug
-        st.write(f"Debug - Original data shape: {contact_data.shape}")
-        st.write(f"Debug - Original unique names: {list(contact_data['name'].unique())}")
-        st.write(f"Debug - Column names: {list(contact_data.columns)}")
+        # Find first phone number
+        phone_contacts = name_contacts[name_contacts['type'] == 'phone_number']
+        if not phone_contacts.empty:
+            first_phone_dict = phone_contacts.iloc[0].to_dict()
+            result_rows.append(first_phone_dict)
+            st.write(f"Added phone for {name}: {first_phone_dict['value']}")
         
-        # Create empty dataframe for selected contacts
-        selected_contacts = pd.DataFrame(columns=contact_data.columns)
+        # Find first email
+        email_contacts = name_contacts[name_contacts['type'] == 'email']
+        if not email_contacts.empty:
+            first_email_dict = email_contacts.iloc[0].to_dict()
+            result_rows.append(first_email_dict)
+            st.write(f"Added email for {name}: {first_email_dict['value']}")
+    
+    # Create new DataFrame from the collected rows
+    if result_rows:
+        selected_contacts = pd.DataFrame(result_rows)
         
-        # Process each unique name separately
-        for name in contact_data['name'].unique():
-            st.write(f"Processing owner: {name}")
-            
-            # Get all contacts for this name
-            name_contacts = contact_data[contact_data['name'] == name]
-            
-            # For phone contacts
-            phone_contacts = name_contacts[name_contacts['type'] == 'phone_number']
-            if not phone_contacts.empty:
-                st.write(f"Found {len(phone_contacts)} phone number(s) for {name}, adding first one")
-                first_phone = phone_contacts.iloc[0:1]
-                selected_contacts = pd.concat([selected_contacts, first_phone])
-            
-            # For email contacts
-            email_contacts = name_contacts[name_contacts['type'] == 'email']
-            if not email_contacts.empty:
-                st.write(f"Found {len(email_contacts)} email(s) for {name}, adding first one")
-                first_email = email_contacts.iloc[0:1]
-                selected_contacts = pd.concat([selected_contacts, first_email])
+        # Confirm we have data from all owners
+        st.write(f"Result has {len(selected_contacts)} rows from {len(selected_contacts['name'].unique())} unique owners")
         
-        # Reset index of the result
-        selected_contacts = selected_contacts.reset_index(drop=True)
-        
-        # Debug output
-        st.write(f"Debug - Selected contacts shape: {selected_contacts.shape}")
-        st.write(f"Debug - Selected unique names: {list(selected_contacts['name'].unique())}")
-        
-        # Set send_to column
+        # Add send_to column if needed
         if 'send_to' in selected_contacts.columns:
             selected_contacts['send_to'] = True
         else:
@@ -108,11 +103,8 @@ def select_first_contacts():
         st.session_state.final_data = selected_contacts
         
         return selected_contacts
-    
-    except Exception as e:
-        st.error(f"Error in select_first_contacts: {str(e)}")
-        import traceback
-        st.error(traceback.format_exc())
+    else:
+        st.error("No contacts were selected")
         return None
 
 def send_marketing_notification(contact_dict):
