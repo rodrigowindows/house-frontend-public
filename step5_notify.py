@@ -27,23 +27,23 @@ def get_sample_data():
     return sample_data
 
 def get_sample_scraped_data():
-    """Return realistic sample scraped data with multiple owners for the same property ID."""
+    """Return generic sample scraped data with multiple owners for the same property ID."""
     import pandas as pd
     
     # Create a sample DataFrame with multiple owners for the same property ID
     sample_data = pd.DataFrame({
-        "id": ["19-22-30-1496-04160"] * 9,  # Same property ID for all contacts
-        "address": ["2402 E MARKS ST ORLANDO, FL 32803-3629"] * 9,
-        "current_address": ["2402 E MARKS ST ORLANDO, FL 32803-3629"] * 9,
-        "name": ["Fay Geving", "Fay Geving", "Fay Geving", 
-                "T Strickland Cameron", "T Strickland Cameron", "T Strickland Cameron",
-                "Mark Dwayne Geving", "Mark Dwayne Geving", "Mark Dwayne Geving"],
+        "id": ["TEST-PROPERTY-ID"] * 9,  # Same property ID for all contacts
+        "address": ["123 Test Street, Test City, FL 12345"] * 9,
+        "current_address": ["123 Test Street, Test City, FL 12345"] * 9,
+        "name": ["Test Owner 1", "Test Owner 1", "Test Owner 1", 
+                "Test Owner 2", "Test Owner 2", "Test Owner 2",
+                "Test Owner 3", "Test Owner 3", "Test Owner 3"],
         "type": ["phone_number", "phone_number", "email",
                 "phone_number", "phone_number", "email",
                 "phone_number", "phone_number", "email"],
-        "value": ["(111) 111-1111", "(222) 222-2222", "fay@example.com",
-                 "(333) 333-3333", "(444) 444-4444", "tstrickland@example.com",
-                 "(555) 555-5555", "(666) 666-6666", "mark@example.com"],
+        "value": ["(111) 111-1111", "(111) 111-2222", "test1@example.com",
+                 "(222) 222-1111", "(222) 222-2222", "test2@example.com",
+                 "(333) 333-1111", "(333) 333-2222", "test3@example.com"],
         "selected": [True] * 9
     })
     
@@ -174,7 +174,7 @@ def show():
             st.session_state.final_data = get_sample_scraped_data()
             
             # Force rerun to refresh
-            st.rerun()
+            st.experimental_rerun()
     
     st.header("Step 5: Send Notifications")
     
@@ -192,7 +192,7 @@ def show():
             selected = select_first_contacts()
             if selected is not None:
                 st.success(f"Selected {len(selected)} contacts (first phone and email for each property)")
-                st.experimental_rerun()  # Using experimental_rerun instead of rerun
+                st.experimental_rerun()
     
     # Test your contacts button
     if st.button("🔍 Analyze Current Contacts"):
