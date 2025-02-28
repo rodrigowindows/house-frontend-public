@@ -103,8 +103,8 @@ def send_marketing_notification(contact_dict):
         payload = {
             "name": name,
             "address": address,
-            "phone_number": None,  # Default to None
-            "email": None          # Default to None
+            "phone_number": "",  # Default to None
+            "email": ""          # Default to None
         }
         
         # Update with actual values if available
