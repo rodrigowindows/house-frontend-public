@@ -45,7 +45,7 @@ def get_sample_scraped_data():
 
 def select_first_contacts():
     """
-    For each unique owner (id + name combination), keep the first phone number AND 
+    For each unique owner (based on name), keep the first phone number AND 
     the first email address if available
     """
     if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
@@ -54,19 +54,16 @@ def select_first_contacts():
     # Get the data
     contact_data = st.session_state.final_data.copy()
     
-    # Get unique combinations of ID and name
-    unique_owners = contact_data[['id', 'name']].drop_duplicates()
+    # Get unique owner names, regardless of ID
+    unique_owners = contact_data['name'].unique()
     
     # Create empty dataframe for selected contacts
     selected_contacts = pd.DataFrame()
     
-    # For each unique owner (id + name combination), get the first phone AND first email
-    for _, owner in unique_owners.iterrows():
-        id_val = owner['id']
-        name_val = owner['name']
-        
-        # Get all contacts for this specific owner
-        owner_contacts = contact_data[(contact_data['id'] == id_val) & (contact_data['name'] == name_val)]
+    # For each unique owner name, get the first phone AND first email
+    for owner_name in unique_owners:
+        # Get all contacts for this specific owner name
+        owner_contacts = contact_data[contact_data['name'] == owner_name]
         
         # Get first phone number if available
         phone_contacts = owner_contacts[owner_contacts['type'] == 'phone_number']
@@ -99,12 +96,12 @@ def send_marketing_notification(contact_dict):
         name = contact_dict["name"]
         address = contact_dict["address"]
         
-        # Create payload - always include all fields, even if null
+        # Create payload - always include all fields with empty strings instead of None
         payload = {
             "name": name,
             "address": address,
-            "phone_number": "",  # Default to None
-            "email": ""          # Default to None
+            "phone_number": "",  # Default to empty string instead of None
+            "email": ""          # Default to empty string instead of None
         }
         
         # Update with actual values if available
