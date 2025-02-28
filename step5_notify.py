@@ -45,7 +45,8 @@ def get_sample_scraped_data():
 
 def select_first_contacts():
     """
-    Select only the first phone number and first email for each property ID
+    For each unique owner (id + name combination), select just ONE contact 
+    (prioritizing phone if available, otherwise email)
     """
     if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
         return
@@ -53,24 +54,34 @@ def select_first_contacts():
     # Get the data
     contact_data = st.session_state.final_data.copy()
     
-    # Filter to get unique IDs
-    unique_ids = contact_data['id'].unique()
+    # Get unique combinations of ID and name
+    unique_owners = contact_data[['id', 'name']].drop_duplicates()
     
     # Create empty dataframe for selected contacts
     selected_contacts = pd.DataFrame()
     
-    # For each unique ID, get the first phone number and first email
-    for id_val in unique_ids:
-        id_contacts = contact_data[contact_data['id'] == id_val]
+    # For each unique owner (id + name combination), select one contact
+    for _, owner in unique_owners.iterrows():
+        id_val = owner['id']
+        name_val = owner['name']
         
-        # Get first phone number
-        phone_contacts = id_contacts[id_contacts['type'] == 'phone_number']
+        # Get all contacts for this specific owner
+        owner_contacts = contact_data[(contact_data['id'] == id_val) & (contact_data['name'] == name_val)]
+        
+        # Get address and current_address (should be the same for all contacts of this owner)
+        address = owner_contacts['address'].iloc[0]
+        current_address = owner_contacts['current_address'].iloc[0]
+        
+        # Try to get phone number first
+        phone_contacts = owner_contacts[owner_contacts['type'] == 'phone_number']
+        email_contacts = owner_contacts[owner_contacts['type'] == 'email']
+        
+        # Create a row for this owner
         if not phone_contacts.empty:
+            # If phone exists, use it
             selected_contacts = pd.concat([selected_contacts, phone_contacts.iloc[0:1]], ignore_index=True)
-            
-        # Get first email
-        email_contacts = id_contacts[id_contacts['type'] == 'email']
-        if not email_contacts.empty:
+        elif not email_contacts.empty:
+            # If no phone but email exists, use email
             selected_contacts = pd.concat([selected_contacts, email_contacts.iloc[0:1]], ignore_index=True)
     
     # Update all selected contacts to True for send_to
@@ -94,29 +105,19 @@ def send_marketing_notification(contact_dict):
         name = contact_dict["name"]
         address = contact_dict["address"]
         
-        # Create payload
+        # Create payload - always include all fields, even if null
         payload = {
             "name": name,
-            "address": address
+            "address": address,
+            "phone_number": None,  # Default to None
+            "email": None          # Default to None
         }
         
-        # Get phone number and email for this contact
-        phone_value = None
-        email_value = None
-        
-        # Find phone number and email from the data
-        if "phone_data" in contact_dict and contact_dict["phone_data"] is not None:
-            phone_value = contact_dict["phone_data"]["value"]
-            
-        if "email_data" in contact_dict and contact_dict["email_data"] is not None:
-            email_value = contact_dict["email_data"]["value"]
-        
-        # Add to payload if available
-        if phone_value:
-            payload["phone_number"] = phone_value
-            
-        if email_value:
-            payload["email"] = email_value
+        # Update with actual values if available
+        if contact_dict["type"] == "phone_number":
+            payload["phone_number"] = contact_dict["value"]
+        elif contact_dict["type"] == "email":
+            payload["email"] = contact_dict["value"]
         
         # Debug
         st.write(f"Sending payload: {payload}")
@@ -263,75 +264,32 @@ def show():
             if send_button and not selected_contacts.empty:
                 # Call API to send notifications
                 with st.spinner("Sending notifications..."):
-                    # Group by property for API call
-                    unique_ids = selected_contacts["id"].unique()
-                    
                     # Prepare for status tracking
                     status_df = pd.DataFrame(columns=[
                         "id", "name", "contact", "type", "timestamp", "status", "response"
                     ])
                     
-                    # Process each property one by one
-                    for property_id in unique_ids:
-                        # Get the property information
-                        property_data = selected_contacts[selected_contacts["id"] == property_id].iloc[0]
+                    # Process each contact one by one (each row is a separate API call)
+                    for idx, contact in selected_contacts.iterrows():
+                        # Create the contact dictionary directly from the row
+                        contact_dict = contact.to_dict()
                         
-                        # Get the phone number and email for this property
-                        phone_data = None
-                        email_data = None
-                        
-                        # Get phone data if available
-                        phone_rows = selected_contacts[(selected_contacts["id"] == property_id) & 
-                                                    (selected_contacts["type"] == "phone_number")]
-                        if not phone_rows.empty:
-                            phone_data = phone_rows.iloc[0].to_dict()
-                        
-                        # Get email data if available
-                        email_rows = selected_contacts[(selected_contacts["id"] == property_id) & 
-                                                    (selected_contacts["type"] == "email")]
-                        if not email_rows.empty:
-                            email_data = email_rows.iloc[0].to_dict()
-                        
-                        # Create the contact dictionary
-                        contact_dict = {
-                            "id": property_id,
-                            "name": property_data["name"],
-                            "address": property_data["address"],
-                            "phone_data": phone_data,
-                            "email_data": email_data
-                        }
-                        
-                        # Send notification
+                        # Send notification (one API call per contact)
                         response, success = send_marketing_notification(contact_dict)
                         
                         # Record status
                         timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
                         
-                        # Add phone status if available
-                        if phone_data is not None:
-                            phone_value = phone_data["value"]
-                            status_df = pd.concat([status_df, pd.DataFrame([{
-                                "id": property_id,
-                                "name": property_data["name"],
-                                "contact": phone_value,
-                                "type": "Call/SMS",
-                                "timestamp": timestamp,
-                                "status": "Sent" if success else "Failed",
-                                "response": str(response.get("call_status_code", "N/A")) if success else "Error"
-                            }])], ignore_index=True)
-                        
-                        # Add email status if available
-                        if email_data is not None:
-                            email_value = email_data["value"]
-                            status_df = pd.concat([status_df, pd.DataFrame([{
-                                "id": property_id,
-                                "name": property_data["name"],
-                                "contact": email_value,
-                                "type": "Email",
-                                "timestamp": timestamp,
-                                "status": "Sent" if success else "Failed",
-                                "response": str(response.get("email_status_code", "N/A")) if success else "Error"
-                            }])], ignore_index=True)
+                        # Add status entry
+                        status_df = pd.concat([status_df, pd.DataFrame([{
+                            "id": contact["id"],
+                            "name": contact["name"],
+                            "contact": contact["value"],
+                            "type": "Call/SMS" if contact["type"] == "phone_number" else "Email",
+                            "timestamp": timestamp,
+                            "status": "Sent" if success else "Failed",
+                            "response": str(response) if success else "Error"
+                        }])], ignore_index=True)
                     
                     st.session_state.status_df = status_df
                 
