@@ -27,18 +27,24 @@ def get_sample_data():
     return sample_data
 
 def get_sample_scraped_data():
-    """Return sample scraped data."""
+    """Return realistic sample scraped data with multiple owners for the same property ID."""
     import pandas as pd
     
-    # Create a sample DataFrame with contact information
+    # Create a sample DataFrame with multiple owners for the same property ID
     sample_data = pd.DataFrame({
-        "id": ["TEST-00-00-0000-00000", "TEST-00-00-0000-00000", "TEST-00-00-0000-00000"],
-        "address": ["123 Test Street, Test City, FL 12345"] * 3,
-        "current_address": ["123 Test Street, Test City, FL 12345"] * 3,
-        "name": ["Test Owner"] * 3,
-        "type": ["phone_number", "phone_number", "email"],
-        "value": ["(111) 111-1111", "(222) 222-2222", "test@test.com"],
-        "selected": [True, True, True]
+        "id": ["19-22-30-1496-04160"] * 9,  # Same property ID for all contacts
+        "address": ["2402 E MARKS ST ORLANDO, FL 32803-3629"] * 9,
+        "current_address": ["2402 E MARKS ST ORLANDO, FL 32803-3629"] * 9,
+        "name": ["Fay Geving", "Fay Geving", "Fay Geving", 
+                "T Strickland Cameron", "T Strickland Cameron", "T Strickland Cameron",
+                "Mark Dwayne Geving", "Mark Dwayne Geving", "Mark Dwayne Geving"],
+        "type": ["phone_number", "phone_number", "email",
+                "phone_number", "phone_number", "email",
+                "phone_number", "phone_number", "email"],
+        "value": ["(111) 111-1111", "(222) 222-2222", "fay@example.com",
+                 "(333) 333-3333", "(444) 444-4444", "tstrickland@example.com",
+                 "(555) 555-5555", "(666) 666-6666", "mark@example.com"],
+        "selected": [True] * 9
     })
     
     return sample_data
@@ -49,42 +55,65 @@ def select_first_contacts():
     the first email address if available
     """
     if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
-        return
+        st.error("No data found in session state")
+        return None
         
-    # Get the data
-    contact_data = st.session_state.final_data.copy()
-    
-    # Get unique owner names, regardless of ID
-    unique_owners = contact_data['name'].unique()
-    
-    # Create empty dataframe for selected contacts
-    selected_contacts = pd.DataFrame()
-    
-    # For each unique owner name, get the first phone AND first email
-    for owner_name in unique_owners:
-        # Get all contacts for this specific owner name
-        owner_contacts = contact_data[contact_data['name'] == owner_name]
+    try:
+        # Get the data
+        contact_data = st.session_state.final_data.copy()
         
-        # Get first phone number if available
-        phone_contacts = owner_contacts[owner_contacts['type'] == 'phone_number']
-        if not phone_contacts.empty:
-            selected_contacts = pd.concat([selected_contacts, phone_contacts.iloc[0:1]], ignore_index=True)
+        # Let's print the data shape to debug
+        st.write(f"Debug - Original data shape: {contact_data.shape}")
+        st.write(f"Debug - Original unique names: {list(contact_data['name'].unique())}")
+        st.write(f"Debug - Column names: {list(contact_data.columns)}")
+        
+        # Create empty dataframe for selected contacts
+        selected_contacts = pd.DataFrame(columns=contact_data.columns)
+        
+        # Process each unique name separately
+        for name in contact_data['name'].unique():
+            st.write(f"Processing owner: {name}")
             
-        # Get first email if available
-        email_contacts = owner_contacts[owner_contacts['type'] == 'email']
-        if not email_contacts.empty:
-            selected_contacts = pd.concat([selected_contacts, email_contacts.iloc[0:1]], ignore_index=True)
-    
-    # Update all selected contacts to True for send_to
-    if 'send_to' in selected_contacts.columns:
-        selected_contacts['send_to'] = True
-    else:
-        selected_contacts['send_to'] = True
+            # Get all contacts for this name
+            name_contacts = contact_data[contact_data['name'] == name]
+            
+            # For phone contacts
+            phone_contacts = name_contacts[name_contacts['type'] == 'phone_number']
+            if not phone_contacts.empty:
+                st.write(f"Found {len(phone_contacts)} phone number(s) for {name}, adding first one")
+                first_phone = phone_contacts.iloc[0:1]
+                selected_contacts = pd.concat([selected_contacts, first_phone])
+            
+            # For email contacts
+            email_contacts = name_contacts[name_contacts['type'] == 'email']
+            if not email_contacts.empty:
+                st.write(f"Found {len(email_contacts)} email(s) for {name}, adding first one")
+                first_email = email_contacts.iloc[0:1]
+                selected_contacts = pd.concat([selected_contacts, first_email])
         
-    # Update session state
-    st.session_state.final_data = selected_contacts
+        # Reset index of the result
+        selected_contacts = selected_contacts.reset_index(drop=True)
+        
+        # Debug output
+        st.write(f"Debug - Selected contacts shape: {selected_contacts.shape}")
+        st.write(f"Debug - Selected unique names: {list(selected_contacts['name'].unique())}")
+        
+        # Set send_to column
+        if 'send_to' in selected_contacts.columns:
+            selected_contacts['send_to'] = True
+        else:
+            selected_contacts['send_to'] = True
+        
+        # Update session state
+        st.session_state.final_data = selected_contacts
+        
+        return selected_contacts
     
-    return selected_contacts
+    except Exception as e:
+        st.error(f"Error in select_first_contacts: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+        return None
 
 def send_marketing_notification(contact_dict):
     """Send notification via the marketing API."""
@@ -161,6 +190,20 @@ def show():
             if selected is not None:
                 st.success(f"Selected {len(selected)} contacts (first phone and email for each property)")
                 st.rerun()
+    
+    # Test your contacts button
+    if st.button("🔍 Analyze Current Contacts"):
+        if hasattr(st.session_state, 'final_data') and st.session_state.final_data is not None:
+            data = st.session_state.final_data
+            st.write(f"Current data shape: {data.shape}")
+            st.write(f"Unique names: {sorted(data['name'].unique())}")
+            st.write(f"Contacts per name:")
+            for name in sorted(data['name'].unique()):
+                name_data = data[data['name'] == name]
+                st.write(f"  - {name}: {len(name_data)} contacts")
+                for type_val in name_data['type'].unique():
+                    type_count = len(name_data[name_data['type'] == type_val])
+                    st.write(f"    - {type_val}: {type_count}")
     
     # Group contacts by owner for better organization
     contact_data = st.session_state.final_data.copy()
