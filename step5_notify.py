@@ -51,60 +51,71 @@ def get_sample_scraped_data():
 
 def select_first_contacts():
     """
-    For each unique owner (based on name), keep the first phone number AND 
-    the first email address if available
+    Direct implementation to select one phone and one email per unique owner name.
     """
-    if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
-        st.error("No data found in session state")
-        return None
+    try:
+        st.write("Running direct implementation of select_first_contacts")
         
-    # Get the data
-    contact_data = st.session_state.final_data.copy()
-    
-    # Create a brand new empty DataFrame to store the results
-    result_rows = []
-    
-    # Process each unique name
-    unique_names = contact_data['name'].unique()
-    st.write(f"Found {len(unique_names)} unique names: {list(unique_names)}")
-    
-    for name in unique_names:
-        # Get all contacts for this name
-        name_contacts = contact_data[contact_data['name'] == name]
+        # Get current data from session state
+        if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
+            st.error("No data in session state")
+            return None
+            
+        # Create a copy of the data to work with
+        all_contacts_df = st.session_state.final_data.copy()
+        st.write(f"Starting with {len(all_contacts_df)} contacts, {len(all_contacts_df['name'].unique())} unique names")
         
-        # Find first phone number
-        phone_contacts = name_contacts[name_contacts['type'] == 'phone_number']
-        if not phone_contacts.empty:
-            first_phone_dict = phone_contacts.iloc[0].to_dict()
-            result_rows.append(first_phone_dict)
-            st.write(f"Added phone for {name}: {first_phone_dict['value']}")
+        # Convert to records for easier processing
+        all_contacts = all_contacts_df.to_dict('records')
+        st.write(f"Converted {len(all_contacts)} rows to dictionary records")
         
-        # Find first email
-        email_contacts = name_contacts[name_contacts['type'] == 'email']
-        if not email_contacts.empty:
-            first_email_dict = email_contacts.iloc[0].to_dict()
-            result_rows.append(first_email_dict)
-            st.write(f"Added email for {name}: {first_email_dict['value']}")
-    
-    # Create new DataFrame from the collected rows
-    if result_rows:
-        selected_contacts = pd.DataFrame(result_rows)
+        # Get unique names
+        unique_names = list(set([contact['name'] for contact in all_contacts]))
+        st.write(f"Found {len(unique_names)} unique names: {unique_names}")
         
-        # Confirm we have data from all owners
-        st.write(f"Result has {len(selected_contacts)} rows from {len(selected_contacts['name'].unique())} unique owners")
+        # Store selected contacts
+        selected_contacts = []
         
-        # Add send_to column if needed
-        if 'send_to' in selected_contacts.columns:
-            selected_contacts['send_to'] = True
+        # Process each unique name
+        for name in unique_names:
+            st.write(f"Processing {name}")
+            
+            # Get all contacts for this name
+            name_contacts = [c for c in all_contacts if c['name'] == name]
+            
+            # Find first phone number
+            phone_contacts = [c for c in name_contacts if c['type'] == 'phone_number']
+            if phone_contacts:
+                selected_contacts.append(phone_contacts[0])
+                st.write(f"Added phone for {name}: {phone_contacts[0]['value']}")
+            
+            # Find first email
+            email_contacts = [c for c in name_contacts if c['type'] == 'email']
+            if email_contacts:
+                selected_contacts.append(email_contacts[0])
+                st.write(f"Added email for {name}: {email_contacts[0]['value']}")
+        
+        # Convert back to DataFrame
+        if selected_contacts:
+            result_df = pd.DataFrame(selected_contacts)
+            
+            # Add send_to column
+            result_df['send_to'] = True
+            
+            # Save to session state
+            st.session_state.final_data = result_df
+            
+            # Show success
+            st.write(f"Successfully selected {len(result_df)} contacts from {len(result_df['name'].unique())} unique owners")
+            return result_df
         else:
-            selected_contacts['send_to'] = True
-        
-        # Update session state
-        st.session_state.final_data = selected_contacts
-        
-        return selected_contacts
-    else:
-        st.error("No contacts were selected")
+            st.error("No contacts were selected")
+            return None
+            
+    except Exception as e:
+        import traceback
+        st.error(f"Error in select_first_contacts: {str(e)}")
+        st.error(traceback.format_exc())
         return None
 
 def send_marketing_notification(contact_dict):
@@ -181,7 +192,7 @@ def show():
             selected = select_first_contacts()
             if selected is not None:
                 st.success(f"Selected {len(selected)} contacts (first phone and email for each property)")
-                st.rerun()
+                st.experimental_rerun()  # Using experimental_rerun instead of rerun
     
     # Test your contacts button
     if st.button("🔍 Analyze Current Contacts"):
@@ -228,7 +239,7 @@ def show():
             
             # Create a dataframe editor for this owner's contacts with a UNIQUE key
             # The key issue is here - we need to ensure each data_editor has a unique key
-            unique_editor_key = f"editor_{owner_id}_{widget_counter}"
+            unique_editor_key = f"editor_{owner_id}_{widget_counter}_{owner_name}"
             
             edited_contacts = st.data_editor(
                 owner_contacts,
@@ -250,11 +261,11 @@ def show():
             )
             
             # Store the edited data for this owner
-            owners_data[owner_id] = edited_contacts
+            owners_data[f"{owner_id}_{owner_name}"] = edited_contacts
     
     # Combine all the edited data
     updated_contacts = pd.DataFrame()
-    for owner_id, edited_data in owners_data.items():
+    for key, edited_data in owners_data.items():
         updated_contacts = pd.concat([updated_contacts, edited_data], ignore_index=True)
     
     # Update the session state with the edited data
@@ -282,7 +293,7 @@ def show():
         with col1:
             if st.button("⬅️ Back to Contact Selection"):
                 st.session_state.step = 4
-                st.rerun()
+                st.experimental_rerun()
                 
         with col2:
             send_button = st.button("Send Notifications", type="primary")
@@ -334,7 +345,7 @@ def show():
                             if key != "step":
                                 del st.session_state[key]
                         st.session_state.step = 1
-                        st.rerun()
+                        st.experimental_rerun()
                         
                 with col2:
                     if st.button("Download Notification Report"):
@@ -350,4 +361,4 @@ def show():
         
         if st.button("⬅️ Back to Contact Selection"):
             st.session_state.step = 4
-            st.rerun()
+            st.experimental_rerun()
