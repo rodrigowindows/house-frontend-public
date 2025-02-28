@@ -45,8 +45,8 @@ def get_sample_scraped_data():
 
 def select_first_contacts():
     """
-    For each unique owner (id + name combination), select just ONE contact 
-    (prioritizing phone if available, otherwise email)
+    For each unique owner (id + name combination), keep the first phone number AND 
+    the first email address if available
     """
     if not hasattr(st.session_state, 'final_data') or st.session_state.final_data is None:
         return
@@ -60,7 +60,7 @@ def select_first_contacts():
     # Create empty dataframe for selected contacts
     selected_contacts = pd.DataFrame()
     
-    # For each unique owner (id + name combination), select one contact
+    # For each unique owner (id + name combination), get the first phone AND first email
     for _, owner in unique_owners.iterrows():
         id_val = owner['id']
         name_val = owner['name']
@@ -68,20 +68,14 @@ def select_first_contacts():
         # Get all contacts for this specific owner
         owner_contacts = contact_data[(contact_data['id'] == id_val) & (contact_data['name'] == name_val)]
         
-        # Get address and current_address (should be the same for all contacts of this owner)
-        address = owner_contacts['address'].iloc[0]
-        current_address = owner_contacts['current_address'].iloc[0]
-        
-        # Try to get phone number first
+        # Get first phone number if available
         phone_contacts = owner_contacts[owner_contacts['type'] == 'phone_number']
-        email_contacts = owner_contacts[owner_contacts['type'] == 'email']
-        
-        # Create a row for this owner
         if not phone_contacts.empty:
-            # If phone exists, use it
             selected_contacts = pd.concat([selected_contacts, phone_contacts.iloc[0:1]], ignore_index=True)
-        elif not email_contacts.empty:
-            # If no phone but email exists, use email
+            
+        # Get first email if available
+        email_contacts = owner_contacts[owner_contacts['type'] == 'email']
+        if not email_contacts.empty:
             selected_contacts = pd.concat([selected_contacts, email_contacts.iloc[0:1]], ignore_index=True)
     
     # Update all selected contacts to True for send_to
