@@ -3,6 +3,8 @@ import pandas as pd
 import requests
 import json
 import time
+import tempfile
+import os
 from utils import navigation_buttons
 
 def get_sample_data():
@@ -59,6 +61,35 @@ def process_files(file1, file2):
                 
     except Exception as e:
         st.error(f"Error processing files: {str(e)}")
+        return False
+
+def process_direct_diff(diff_file):
+    """Process the differences file directly for scraping."""
+    try:
+        with st.spinner("Processing differences file..."):
+            # Read the CSV
+            df = pd.read_csv(diff_file)
+            
+            # Set the data in session state
+            st.session_state.data = df
+            
+            # Display a success message
+            st.success(f"Successfully loaded {len(df)} records from differences file!")
+            
+            # Option to proceed directly to scraping
+            cols = st.columns([3, 3])
+            with cols[0]:
+                if st.button("Continue to Review (Step 2)"):
+                    st.session_state.step = 2
+                    st.rerun()
+            with cols[1]:
+                if st.button("Skip to Scraping (Step 3)", type="primary"):
+                    st.session_state.step = 3
+                    st.rerun()
+                    
+            return True
+    except Exception as e:
+        st.error(f"Error processing differences file: {str(e)}")
         return False
 
 def manual_data_entry():
@@ -121,8 +152,38 @@ def manual_data_entry():
             
     return st.session_state.data is not None
 
+def upload_differences_file():
+    """Provide direct differences file upload functionality."""
+    st.subheader("Upload Differences File Directly")
+    
+    st.markdown("""
+    Upload a single CSV file containing the differences data for direct scraping.
+    This allows you to skip the standard two-file comparison process.
+    """)
+    
+    # File uploader for differences file
+    diff_file = st.file_uploader("Differences data file", type=['csv'], key="diff_file_uploader")
+    
+    if diff_file:
+        st.success("Differences file uploaded!")
+        
+        # Preview button
+        if st.button("Preview Differences File"):
+            # Read and display a preview
+            df = pd.read_csv(diff_file)
+            st.write("Preview of first 5 rows:")
+            st.dataframe(df.head(5), use_container_width=True)
+        
+        # Process button enabled when file is uploaded
+        process_button = st.button("Process Differences File", type="primary")
+        
+        if process_button:
+            return process_direct_diff(diff_file)
+    
+    return False
+
 def csv_upload():
-    """Provide CSV upload functionality."""
+    """Provide standard CSV upload functionality with two files."""
     col1, col2 = st.columns(2)
     
     with col1:
@@ -178,23 +239,31 @@ def show():
             
     st.header("Step 1: Upload CSV Files")
     
+    # Highlight the direct upload option
     st.markdown("""
-    ### Upload property tax certificate files
-    
-    Upload the required files to start the workflow:
-    - First file should contain tax certificate data
-    - Second file should contain property data
-    
-    Alternatively, you can manually enter data.
-    """)
+    <div style="background-color: #f0f7fb; padding: 15px; border-radius: 5px; border-left: 5px solid #2196F3; margin-bottom: 20px;">
+      <h3 style="color: #0d47a1; margin-top: 0;">NEW! Direct Differences Upload</h3>
+      <p>You can now upload a differences file directly to skip the comparison process and proceed to scraping.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Tabs for different data input methods
-    tab1, tab2 = st.tabs(["CSV Upload", "Manual Entry"])
+    tab1, tab2, tab3 = st.tabs(["Direct Differences Upload", "Standard CSV Upload", "Manual Entry"])
     
     with tab1:
-        csv_upload()
+        upload_differences_file()
     
     with tab2:
+        st.markdown("""
+        ### Upload property tax certificate files
+        
+        Upload the required files to start the workflow:
+        - First file should contain tax certificate data
+        - Second file should contain property data
+        """)
+        csv_upload()
+    
+    with tab3:
         manual_data_entry()
     
     # Navigation - only forward since we're on step 1
