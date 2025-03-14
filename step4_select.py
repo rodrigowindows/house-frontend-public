@@ -49,10 +49,25 @@ def show():
     """Display the contact selection step."""
     st.header("Step 4: Review and Select Contact Information")
     
-    # Add tab for manual upload
-    tab1, tab2 = st.tabs(["Scraped Contacts", "Upload Contact List"])
+    # Add tab for manual upload - make tabs more prominent
+    col1, col2 = st.columns(2)
+    with col1:
+        scraped_tab = st.button("Scraped Contacts", use_container_width=True, type="primary" if not "active_tab" in st.session_state or st.session_state.active_tab == "scraped" else "secondary")
+    with col2:
+        upload_tab = st.button("Upload Contact List", use_container_width=True, type="primary" if "active_tab" in st.session_state and st.session_state.active_tab == "upload" else "secondary")
     
-    with tab1:
+    # Set active tab based on button clicks
+    if scraped_tab:
+        st.session_state.active_tab = "scraped"
+    elif upload_tab:
+        st.session_state.active_tab = "upload"
+    
+    # Initialize active tab if not set
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = "scraped"
+    
+    # Show active tab content
+    if st.session_state.active_tab == "scraped":
         # Initialize data if needed
         if not hasattr(st.session_state, 'data') or st.session_state.data is None:
             st.session_state.data = step1_upload.get_sample_data()
@@ -127,7 +142,7 @@ def show():
                     else:
                         st.info("No phone numbers found for this owner.")
                 
-                with tab2:
+                elif st.session_state.active_tab == "upload":
                     email_contacts = owner_contacts[owner_contacts["type"] == "email"]
                     if not email_contacts.empty:
                         # Create a dataframe editor for emails
