@@ -49,25 +49,35 @@ def show():
     """Display the contact selection step."""
     st.header("Step 4: Review and Select Contact Information")
     
-    # Add tab for manual upload - make tabs more prominent
-    col1, col2 = st.columns(2)
-    with col1:
-        scraped_tab = st.button("Scraped Contacts", use_container_width=True, type="primary" if not "active_tab" in st.session_state or st.session_state.active_tab == "scraped" else "secondary")
-    with col2:
-        upload_tab = st.button("Upload Contact List", use_container_width=True, type="primary" if "active_tab" in st.session_state and st.session_state.active_tab == "upload" else "secondary")
-    
-    # Set active tab based on button clicks
-    if scraped_tab:
-        st.session_state.active_tab = "scraped"
-    elif upload_tab:
-        st.session_state.active_tab = "upload"
-    
-    # Initialize active tab if not set
+    # Initialize session state for active tab if not exists
     if "active_tab" not in st.session_state:
         st.session_state.active_tab = "scraped"
     
-    # Show active tab content
+    # Create tab buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Scraped Contacts", 
+                    use_container_width=True, 
+                    type="primary" if st.session_state.active_tab == "scraped" else "secondary",
+                    key="btn_scraped"):
+            st.session_state.active_tab = "scraped"
+            st.rerun()
+    
+    with col2:
+        if st.button("Upload Contact List", 
+                    use_container_width=True, 
+                    type="primary" if st.session_state.active_tab == "upload" else "secondary",
+                    key="btn_upload"):
+            st.session_state.active_tab = "upload"
+            st.rerun()
+    
+    # Display divider
+    st.markdown("---")
+    
+    # Display active tab content
     if st.session_state.active_tab == "scraped":
+        # === SCRAPED CONTACTS TAB ===
+        
         # Initialize data if needed
         if not hasattr(st.session_state, 'data') or st.session_state.data is None:
             st.session_state.data = step1_upload.get_sample_data()
@@ -112,9 +122,9 @@ def show():
                                             (contact_data["name"] == owner_name)]
                 
                 # Create tabs for phone numbers and emails
-                tab1, tab2 = st.tabs(["Phone Numbers", "Email Addresses"])
+                phone_tab, email_tab = st.tabs(["Phone Numbers", "Email Addresses"])
                 
-                with tab1:
+                with phone_tab:
                     phone_contacts = owner_contacts[owner_contacts["type"] == "phone_number"]
                     if not phone_contacts.empty:
                         # Create a dataframe editor for phone numbers
@@ -142,7 +152,7 @@ def show():
                     else:
                         st.info("No phone numbers found for this owner.")
                 
-                elif st.session_state.active_tab == "upload":
+                with email_tab:
                     email_contacts = owner_contacts[owner_contacts["type"] == "email"]
                     if not email_contacts.empty:
                         # Create a dataframe editor for emails
@@ -213,8 +223,9 @@ def show():
                     st.session_state.scraped_data = updated_data
                     st.success("Contact record added successfully!")
                     st.experimental_rerun()
-    
-    with tab2:
+                    
+    else:  # upload tab
+        # === UPLOAD CONTACT LIST TAB ===
         st.subheader("Upload Contact List")
         
         # Information about expected format
@@ -312,7 +323,7 @@ def show():
             mime="text/csv"
         )
     
-    # Show preview of selected contact information
+    # Show preview of selected contact information (shown for both tabs)
     st.subheader("Selected Contact Information Preview")
     if hasattr(st.session_state, 'final_data') and not st.session_state.final_data.empty:
         selected_data = st.session_state.final_data.copy()
